@@ -3,6 +3,9 @@ from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
+import os
+import secrets
+from fastapi.responses import Response
 
 from rpbot_pkg.services.chat_service import ChatService
 
@@ -13,6 +16,32 @@ templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 
 chat_sessions = {}
+
+from fastapi import HTTPException
+
+@app.middleware("http")
+async def password_protection(request: Request, call_next):
+    password = os.environ.get("RPBOT_PASSWORD")
+
+    if not password:
+        return Response(
+            "Server password not configured",
+            status_code=503
+        )
+
+    authorization = request.headers.get("Authorization", "")
+    expected = "Basic " + __import__("base64").b64encode(
+        f"rpbot:{password}".encode()
+    ).decode()
+
+    if not secrets.compare_digest(authorization, expected):
+        return Response(
+            "Login required",
+            status_code=401,
+            headers={"WWW-Authenticate": 'Basic realm="RPBot Private"'}
+        )
+
+    return await call_next(request)
 
 
 @app.get("/", response_class=HTMLResponse)
