@@ -3,3 +3,4 @@ aiohttp>=3.12
 dotenv
 fastapi
 uvicorn
+jinja2
